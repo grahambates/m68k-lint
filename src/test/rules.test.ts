@@ -2202,12 +2202,18 @@ describe("dead register write", () => {
   });
 
   test("leaves a stepped pointer alone", () => {
-    // Postincrement and predecrement write their address register too, so the
-    // single-register check excludes them: removing one would stop the pointer
-    // advancing.
+    // Removing these loads would also stop the pointer advancing.
     expect(lines(["move.w (a2)+,d1", "move.w d2,d1", "move.w d1,(a0)", "moveq #0,d7", "rts"])).toEqual([]);
     expect(lines(["move.w -(a2),d1", "move.w d2,d1", "move.w d1,(a0)", "moveq #0,d7", "rts"])).toEqual([]);
   });
+
+  test.each(["clr.w (a6)+", "move.w d0,(a6)+", "clr.w -(a6)", "tst.w (a6)+", "movea.l (a6)+,a6"])(
+    "ignores incidental pointer updates in %s",
+    (instruction) => {
+      // Overwrite both the pointer and flags so neither can hide a false positive.
+      expect(lines([instruction, "lea custom,a6", "moveq #0,d7", "rts"])).toEqual([]);
+    },
+  );
 
   test("does not cover dead stores to memory", () => {
     // That needs alias analysis, which this does not have.

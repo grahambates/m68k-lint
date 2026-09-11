@@ -32,8 +32,7 @@ function isInertOperand(op: OperandNode): boolean {
 /**
  * Whether removing the instruction could lose a memory access. LEA never
  * dereferences, so it is exempt however its operand is written. Postincrement
- * and predecrement do not reach here: they write their address register too, so
- * the single-register check below excludes them.
+ * and predecrement do not reach here: the operand check below excludes them.
  */
 function readsMemory(line: ParsedLine, mnemonic: string): boolean {
   if (mnemonic === "lea") return false;
@@ -65,6 +64,15 @@ export const deadRegisterWrite: Rule = {
     const mnemonic = semanticMnemonic(line);
     if (!mnemonic) return;
     if (!(line.operands ?? []).length) return;
+    // Address updates are incidental to a memory access, not dead standalone
+    // writes. A store such as CLR.W (a6)+ still matters even if the updated
+    // pointer is never read. Keep these updates in the shared register semantics.
+    if (
+      line.operands!.some(
+        (op) => op.type === "address-register-indirect-postinc" || op.type === "address-register-indirect-predec",
+      )
+    )
+      return;
 
     const registers = getRegisterSemantics(line);
     if (registers.unknownEffects || registers.call) return;
